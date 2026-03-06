@@ -3,13 +3,16 @@
 import { useEffect, useState } from "react";
 import io from "socket.io-client";
 import React from "react";
+import { useAuthStore } from "@/store/authStore";
+
+
 
 const socket = io({
   path: "/api/socket"
 });
 
 export default function Dashboard() {
-
+  const { logout } = useAuthStore();
   const [orders, setOrders] = useState([]);
   const [queue, setQueue] = useState({});
   const [expandedOrder, setExpandedOrder] = useState(null);
@@ -115,10 +118,17 @@ export default function Dashboard() {
   return (
 
     <div className="p-10">
-
-      <h1 className="text-2xl font-bold mb-8">
+      <div className="flex justify-between items-center mb-8">
+      <h1 className="text-2xl font-bold">
         Shopify → ERP Monitor
       </h1>
+      <button
+        onClick={logout}
+        className="ml-auto bg-red-500 text-white px-4 py-2 rounded cursor-pointer"
+      >
+        Logout
+      </button>
+      </div>
 
       {/* QUEUE STATUS */}
 

@@ -1,47 +1,47 @@
-import { verifyShopifyWebhook } from "@/lib/verifyShopifyWebhook";
-import { orderQueue } from "@/lib/orderQueue";
+import { connectDB } from "@/lib/mongodb";
 import { buildMarketplacePayload } from "@/lib/buildMarketplacePayload";
+import { orderQueue } from "@/lib/orderQueue";
+import Order from "@/models/Order";
+import WebhookLog from "@/models/WebhookLog";
 
 export async function POST(req) {
 
-  const rawBody = await req.text();
+  const body = await req.json();
 
-  const hmacHeader = req.headers.get("x-shopify-hmac-sha256");
+  await connectDB();
 
-  let isValid = true;
+  await WebhookLog.create({
+    topic: "orders/create",
+    payload: body,
+    status: "received"
+  });
 
-  if (process.env.NODE_ENV === "production") {
-    isValid = verifyShopifyWebhook(rawBody, hmacHeader);
+  const erpPayload = buildMarketplacePayload(body);
+
+  const existing = await Order.findOne({
+    shopifyOrderId: body.id
+  });
+
+  if (!existing) {
+
+    await Order.create({
+      shopifyOrderId: body.id,
+      erpPayload,
+      shopifyPayload: body,
+      status: "queued"
+    });
+
   }
 
-  if (!isValid) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-
-  const shopifyOrder = JSON.parse(rawBody);
-
-  const erpPayload = buildMarketplacePayload(shopifyOrder);
-
-  console.log("ERP PAYLOAD:");
-  console.log(JSON.stringify(erpPayload, null, 2));
-
-  const job = await orderQueue.add(
+  await orderQueue.add(
     "sendOrder",
+    { shopifyOrder: body, erpPayload },
     {
-      shopifyOrder,
-      erpPayload
-    },
-    {
-      jobId: `order-${shopifyOrder.id}`,
+      jobId: `order-${body.id}`,
       attempts: 5,
-      backoff: {
-        type: "exponential",
-        delay: 5000
-      }
+      backoff: { type: "exponential", delay: 5000 }
     }
   );
-
-  console.log("JOB ADDED:", job.id);
 
   return Response.json({
     message: "Order added to queue"

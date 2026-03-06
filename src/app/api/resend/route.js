@@ -1,35 +1,27 @@
-import { generateToken } from "@/lib/erpToken";
-import { sendOrderToERP } from "@/lib/erpOrder";
+import { connectDB } from "@/lib/mongodb";
+import { orderQueue } from "@/lib/orderQueue";
+import Order from "@/models/Order";
 
 export async function POST(req) {
 
-  try {
+  const { orderId } = await req.json();
 
-    const { payload } = await req.json();
+  await connectDB();
 
-    if (!payload) {
-      return Response.json(
-        { error: "Payload missing" },
-        { status: 400 }
-      );
+  const order = await Order.findOne({
+    shopifyOrderId: orderId
+  });
+
+  await orderQueue.add(
+    "sendOrder",
+    {
+      shopifyOrder: order.shopifyPayload,
+      erpPayload: order.erpPayload
     }
+  );
 
-    const token = await generateToken();
-
-    const response = await sendOrderToERP(token, payload);
-
-    return Response.json({
-      status: "success",
-      response
-    });
-
-  } catch (error) {
-
-    return Response.json({
-      status: "failed",
-      error: error.response?.data || error.message
-    });
-
-  }
+  return Response.json({
+    message: "Retry added to queue"
+  });
 
 }

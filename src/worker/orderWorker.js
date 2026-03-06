@@ -1,5 +1,11 @@
 import dotenv from "dotenv";
-dotenv.config({ path: ".env.local" });
+import path from "path";
+
+dotenv.config({
+  path: path.resolve(process.cwd(), ".env.local")
+});
+
+console.log("MONGO URI:", process.env.MONGODB_URI);
 
 import { Worker } from "bullmq";
 import { redis } from "../lib/redis.js";
@@ -49,9 +55,8 @@ const worker = new Worker(
 
       response = err.response?.data || err.message;
 
-      console.error("❌ ERP ERROR:", response);
+      console.error("❌ ERP ERROR:", JSON.stringify(response, null, 2));
 
-      throw err;
     }
 
     await Order.create({

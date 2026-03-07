@@ -16,6 +16,18 @@ export async function POST(req) {
     status: "received"
   });
 
+   /*Skip orders created by ERP */
+  if (body.app_id === 283870494721) {
+    console.log("Skipping ERP created order:", body.id);
+    await WebhookLog.updateOne(
+      { "payload.id": body.id },
+      { status: "skipped_erp_order" }
+    );
+    return Response.json({
+      message: "Order created by ERP. Skipped."
+    });
+  }
+
   const erpPayload = buildMarketplacePayload(body);
 
   const existing = await Order.findOne({

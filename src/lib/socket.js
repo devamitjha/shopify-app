@@ -2,22 +2,29 @@ import { Server } from "socket.io";
 
 let io;
 
-export const initSocket = (server) => {
+export const initIO = (server) => {
 
-  io = new Server(server, {
-    cors: {
-      origin: "*"
-    }
-  });
+  if (!io) {
 
-  console.log("✅ WebSocket server started");
+    io = new Server(server, {
+      path: "/api/socket",
+      cors: {
+        origin: "*"
+      }
+    });
+
+    console.log("✅ Socket.IO initialized");
+
+  }
+
+  return io;
 
 };
 
 export const getIO = () => {
 
   if (!io) {
-    throw new Error("Socket not initialized");
+    throw new Error("Socket.IO not initialized");
   }
 
   return io;

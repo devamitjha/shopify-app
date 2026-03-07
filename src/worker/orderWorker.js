@@ -7,7 +7,6 @@ import { connectDB } from "../lib/mongodb.js";
 import Order from "../models/Order.js";
 import { generateToken } from "../lib/erpToken.js";
 import { sendOrderToERP } from "../lib/erpOrder.js";
-import { getIO } from "../lib/socket.js";
 
 console.log("🚀 ERP Worker started...");
 
@@ -56,16 +55,7 @@ new Worker(
         status,
         erpResponse: response
       }
-    );
-    // 🔴 Send live update to dashboard
-    try {
-      const io = getIO();
-      io.emit("order-update", {
-        orderId: shopifyOrder.id,
-        status,
-        response
-      });
-    } catch {}
+    );    
 
   },
 

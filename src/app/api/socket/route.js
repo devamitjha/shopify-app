@@ -1,20 +1,13 @@
-import { Server } from "socket.io";
+import { initIO } from "@/lib/socket";
 
 export async function GET(req) {
 
   if (!global.io) {
 
-    console.log("Starting Socket.IO server...");
-
-    global.io = new Server({
-      path: "/api/socket",
-      cors: {
-        origin: "*"
-      }
-    });
+    global.io = initIO();
 
   }
 
-  return new Response("Socket running");
+  return new Response("Socket ready");
 
 }

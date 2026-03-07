@@ -1,15 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import io from "socket.io-client";
+import { useEffect, useState} from "react";
 import React from "react";
 import { useAuthStore } from "@/store/authStore";
 
-
-
-const socket = io({
-  path: "/api/socket"
-});
 
 export default function Dashboard() {
   const { logout } = useAuthStore();
@@ -17,23 +11,7 @@ export default function Dashboard() {
   const [queue, setQueue] = useState({});
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [selectedPayload, setSelectedPayload] = useState(null);
-  const [retryOrderId, setRetryOrderId] = useState(null);
-
-  useEffect(() => {
-
-  fetch("/api/socket"); // initialize socket server
-
-  loadOrders();
-  loadQueue();
-
-  socket.on("order-update", () => {
-
-    loadOrders();
-    loadQueue();
-
-  });
-
-}, []);
+  const [retryOrderId, setRetryOrderId] = useState(null);  
 
   const loadOrders = async () => {
     const res = await fetch("/api/orders");
@@ -48,15 +26,13 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-
     loadOrders();
     loadQueue();
-
-    socket.on("order-update", () => {
+    const interval = setInterval(() => {
       loadOrders();
       loadQueue();
-    });
-
+    }, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const toggleExpand = (orderId) => {

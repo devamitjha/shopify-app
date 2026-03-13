@@ -9,47 +9,7 @@ import {
   flexRender,
 } from "@tanstack/react-table";
 
-function Filter({ column, table }) {
-  const firstValue = table
-    .getPreFilteredRowModel()
-    .flatRows.find((row) => row.getValue(column.id) != null)
-    ?.getValue(column.id);
-
-  const columnFilterValue = column.getFilterValue();
-
-  return typeof firstValue === "number" ? (
-    <div className="flex space-x-1">
-      <input
-        type="number"
-        value={columnFilterValue?.[0] ?? ""}
-        onChange={(e) =>
-          column.setFilterValue((old) => [e.target.value, old?.[1]])
-        }
-        placeholder={`Min`}
-        className="w-full border rounded px-1 py-1 text-xs bg-gray-50 text-gray-900 border-gray-300 focus:ring-1 focus:ring-blue-500 outline-none"
-      />
-      <input
-        type="number"
-        value={columnFilterValue?.[1] ?? ""}
-        onChange={(e) =>
-          column.setFilterValue((old) => [old?.[0], e.target.value])
-        }
-        placeholder={`Max`}
-        className="w-full border rounded px-1 py-1 text-xs bg-gray-50 text-gray-900 border-gray-300 focus:ring-1 focus:ring-blue-500 outline-none"
-      />
-    </div>
-  ) : (
-    <input
-      type="text"
-      value={columnFilterValue ?? ""}
-      onChange={(e) => column.setFilterValue(e.target.value)}
-      placeholder={`Filter...`}
-      className="w-full border rounded px-2 py-1 text-xs bg-gray-50 text-gray-900 border-gray-300 focus:ring-1 focus:ring-blue-500 outline-none"
-    />
-  );
-}
-
-// Separate component for Error Table to keep code clean
+// Separate component for Error Table
 function ErrorTable({ errorData }) {
   const columns = useMemo(
     () => [
@@ -177,6 +137,7 @@ export default function InventoryUpdatePage() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [updateStatus, setUpdateStatus] = useState(null);
+  const [globalFilter, setGlobalFilter] = useState("");
 
   useEffect(() => {
     fetch("/api/inventory")
@@ -224,11 +185,10 @@ export default function InventoryUpdatePage() {
     []
   );
 
-  const [columnFilters, setColumnFilters] = useState([]);
   const [showOnlyBlankIID, setShowOnlyBlankIID] = useState(false);
 
-  // Filter data based on toggle
-  const tableData = useMemo(() => {
+  // Pre-filter data based on Shopify IID toggle
+  const filteredDataByToggle = useMemo(() => {
     if (showOnlyBlankIID) {
       return data.filter(
         (row) =>
@@ -252,20 +212,20 @@ export default function InventoryUpdatePage() {
   }, [data]);
 
   const table = useReactTable({
-    data: tableData,
+    data: filteredDataByToggle,
     columns,
     state: {
-      columnFilters,
+      globalFilter,
     },
+    onGlobalFilterChange: setGlobalFilter,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     initialState: {
       pagination: {
         pageSize: 10,
       },
     },
-    onColumnFiltersChange: setColumnFilters,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
   });
 
   const handleExportBlank = () => {
@@ -437,31 +397,37 @@ export default function InventoryUpdatePage() {
           )}
         </div>
       </div>
+
+      <div className="flex flex-col md:flex-row md:items-center gap-4">
+        <div className="relative flex-1 max-w-sm">
+          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+            <svg className="w-4 h-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+              <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
+            </svg>
+          </div>
+          <input
+            type="text"
+            className="block w-full p-2.5 pl-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm"
+            placeholder="Search all columns..."
+            value={globalFilter ?? ""}
+            onChange={(e) => setGlobalFilter(e.target.value)}
+          />
+        </div>
+      </div>
       
       <div className="overflow-x-auto shadow-md rounded-lg border border-gray-200">
         <table className="w-full text-sm text-left text-gray-500">
           <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
             {table.getHeaderGroups().map((headerGroup) => (
-              <React.Fragment key={headerGroup.id}>
-                <tr className="border-b border-gray-200">
-                  {headerGroup.headers.map((header) => (
-                    <th key={header.id} className="px-4 py-3 font-semibold whitespace-nowrap">
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(header.column.columnDef.header, header.getContext())}
-                    </th>
-                  ))}
-                </tr>
-                <tr>
-                  {headerGroup.headers.map((header) => (
-                    <th key={header.id} className="px-4 py-2 bg-gray-50">
-                      {header.column.getCanFilter() ? (
-                        <Filter column={header.column} table={table} />
-                      ) : null}
-                    </th>
-                  ))}
-                </tr>
-              </React.Fragment>
+              <tr key={headerGroup.id} className="border-b border-gray-200">
+                {headerGroup.headers.map((header) => (
+                  <th key={header.id} className="px-4 py-3 font-semibold whitespace-nowrap">
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(header.column.columnDef.header, header.getContext())}
+                  </th>
+                ))}
+              </tr>
             ))}
           </thead>
           <tbody>

@@ -266,11 +266,19 @@ export default function InventoryUpdatePage() {
     setUpdating(true);
     setUpdateStatus(null);
 
+    // Shrink payload: only send necessary fields to avoid Nginx 413/buffer errors
+    const optimizedData = data.map(item => ({
+      "shopify product inventory id": item["shopify product inventory id"],
+      "shopify_location_id": item.shopify_location_id,
+      "pieces": item.pieces,
+      "item_code": item.item_code
+    }));
+
     try {
       const response = await fetch("/api/inventory", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ inventoryData: data }),
+        body: JSON.stringify({ inventoryData: optimizedData }),
       });
 
       const result = await response.json();

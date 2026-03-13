@@ -133,26 +133,40 @@ function ErrorTable({ errorData }) {
         </table>
       </div>
       
-      <div className="flex items-center justify-between mt-2">
+      <div className="flex items-center justify-between mt-2 bg-red-50 p-2 rounded-lg border border-red-200">
         <div className="flex items-center gap-2">
           <button
-            className="px-2 py-1 border border-red-200 rounded bg-white text-red-700 hover:bg-red-50 disabled:opacity-50 text-xs"
+            className="px-3 py-1 border border-red-300 rounded bg-white text-red-700 hover:bg-red-50 disabled:opacity-50 text-xs font-medium transition-colors"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
           >
-            Prev
+            Previous
           </button>
           <button
-            className="px-2 py-1 border border-red-200 rounded bg-white text-red-700 hover:bg-red-50 disabled:opacity-50 text-xs"
+            className="px-3 py-1 border border-red-300 rounded bg-white text-red-700 hover:bg-red-50 disabled:opacity-50 text-xs font-medium transition-colors"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
           >
             Next
           </button>
         </div>
-        <span className="text-xs text-red-700">
-          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
-        </span>
+        <div className="flex items-center gap-4">
+          <span className="text-xs text-red-700">
+            Page <span className="font-bold">{table.getState().pagination.pageIndex + 1}</span> of{" "}
+            <span className="font-bold">{table.getPageCount()}</span>
+          </span>
+          <select
+            className="border border-red-300 rounded px-2 py-1 text-xs bg-white text-red-700 focus:outline-none focus:ring-1 focus:ring-red-500"
+            value={table.getState().pagination.pageSize}
+            onChange={(e) => table.setPageSize(Number(e.target.value))}
+          >
+            {[5, 10, 20, 50].map((pageSize) => (
+              <option key={pageSize} value={pageSize}>
+                Show {pageSize}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
     </div>
   );

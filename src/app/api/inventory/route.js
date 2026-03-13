@@ -69,3 +69,157 @@ export async function GET() {
     }, { status: 500 });
   }
 }
+
+export async function POST(req) {
+  try {
+    const { inventoryData } = await req.json();
+
+    if (!inventoryData || !Array.isArray(inventoryData)) {
+      return Response.json({ error: 'Invalid inventory data provided' }, { status: 400 });
+    }
+
+    const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
+    const SHOPIFY_STORE = process.env.SHOPIFY_STORE;
+
+    if (!ADMIN_TOKEN || !SHOPIFY_STORE) {
+      return Response.json({ error: 'Shopify configuration missing in .env' }, { status: 500 });
+    }
+
+    // Filter items without Shopify Inventory ID
+    const validItems = inventoryData.filter(item => 
+      item["shopify product inventory id"] && 
+      String(item["shopify product inventory id"]).trim() !== ""
+    );
+
+    // Group by (item_code, shopify_location_id) and sum pieces
+    // Note: User said "Item Code and Shopify LOC ID will be same then add Pieces"
+    const groupedData = validItems.reduce((acc, item) => {
+      const key = `${item.item_code}-${item.shopify_location_id}`;
+      if (!acc[key]) {
+        acc[key] = {
+          inventoryItemId: `gid://shopify/InventoryItem/${item["shopify product inventory id"]}`,
+          locationId: `gid://shopify/Location/${item.shopify_location_id}`,
+          quantity: 0,
+          item_code: item.item_code
+        };
+      }
+      acc[key].quantity += Number(item.pieces || 0);
+      return acc;
+    }, {});
+
+    const setQuantities = Object.values(groupedData).map(group => ({
+      inventoryItemId: group.inventoryItemId,
+      locationId: group.locationId,
+      quantity: group.quantity
+    }));
+
+    if (setQuantities.length === 0) {
+      return Response.json({ message: 'No valid items to update', updatedCount: 0 });
+    }
+
+    // Shopify GraphQL API call
+    // inventorySetOnHandQuantities (introduced in 2023-10)
+    // Up to 250 inventory quantities can be set at once.
+    
+    const query = `
+      mutation inventorySetOnHandQuantities($input: InventorySetOnHandQuantitiesInput!) {
+        inventorySetOnHandQuantities(input: $input) {
+          userErrors {
+            field
+            message
+          }
+          inventoryAdjustmentGroup {
+            createdAt
+          }
+        }
+      }
+    `;
+
+    const batchSize = 250;
+    const allUserErrors = [];
+    let successfulUpdates = 0;
+
+    for (let i = 0; i < setQuantities.length; i += batchSize) {
+      const batch = setQuantities.slice(i, i + batchSize);
+      
+      // Prepare the input for Shopify (only allowed fields)
+      const inputQuantities = batch.map(item => ({
+        inventoryItemId: item.inventoryItemId,
+        locationId: item.locationId,
+        quantity: item.quantity
+      }));
+
+      const response = await fetch(`https://${SHOPIFY_STORE}/admin/api/2024-01/graphql.json`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Access-Token': ADMIN_TOKEN,
+        },
+        body: JSON.stringify({
+          query,
+          variables: {
+            input: {
+              reason: "correction",
+              setQuantities: inputQuantities
+            }
+          }
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.errors) {
+        return Response.json({ 
+          error: 'Shopify API Error', 
+          details: result.errors, 
+          updatedCount: successfulUpdates,
+          failedCount: setQuantities.length - successfulUpdates
+        }, { status: 500 });
+      }
+
+      const userErrors = result.data?.inventorySetOnHandQuantities?.userErrors || [];
+      if (userErrors.length > 0) {
+        // Map index-based errors to actual item data
+        const errorIndices = new Set();
+        userErrors.forEach(err => {
+          const index = parseInt(err.field[2]);
+          errorIndices.add(index);
+          const failedItem = batch[index];
+          allUserErrors.push({
+            item_code: failedItem.item_code,
+            inventoryItemId: failedItem.inventoryItemId,
+            locationId: failedItem.locationId,
+            quantity: failedItem.quantity,
+            message: err.message
+          });
+        });
+        successfulUpdates += (batch.length - errorIndices.size);
+      } else {
+        successfulUpdates += batch.length;
+      }
+    }
+
+    if (allUserErrors.length > 0) {
+      return Response.json({ 
+        error: 'Inventory update completed with some errors', 
+        details: allUserErrors,
+        updatedCount: successfulUpdates,
+        failedCount: allUserErrors.length,
+        totalAttempted: setQuantities.length
+      }, { status: 200 }); // Changed to 200 because it partial succeeded and we want to show the table
+    }
+
+    return Response.json({ 
+      message: 'Inventory updated successfully', 
+      updatedCount: successfulUpdates,
+      totalAttempted: setQuantities.length
+    });
+
+  } catch (error) {
+    console.error('INVENTORY UPDATE ERROR:', error);
+    return Response.json({ 
+      error: 'Failed to update inventory', 
+      details: error.message 
+    }, { status: 500 });
+  }
+}
